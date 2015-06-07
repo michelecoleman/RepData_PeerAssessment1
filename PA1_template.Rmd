@@ -7,10 +7,29 @@ output:
 
 
 ## Loading and preprocessing the data
+Either activity.zip or activity.csv file must exist in the working
+directory to proceed
+```{r}
+if (!file.exists('activity.csv')) {unzip('activity.zip')}
+activity = read.csv('activity.csv')
+```
 
 
 
 ## What is mean total number of steps taken per day?
+Let's explore the distribution of the number of steps taken each day. First, let's look at a histogram of the daily steps:
+
+```{r}
+daily_tot <- data.frame(tapply(activity$steps, activity$date, sum))
+names(daily_tot) <- c("Steps")
+hist(daily_tot$Steps, col='cornflowerblue', main='Distribution of daily step counts',breaks=10, xlab = 'Daily steps', ylab='Number of days')
+```
+
+Let's also look at the average and median number of steps per day, ignoring the days for which we have no data:
+```{r}
+mean(daily_tot$Steps, na.rm=TRUE)
+median(daily_tot$Steps, na.rm=TRUE)
+```
 
 
 
