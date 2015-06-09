@@ -7,11 +7,37 @@ output:
 
 
 ## Loading and preprocessing the data
+#### Load the data
 Either activity.zip or activity.csv file must exist in the working
-directory to proceed
+directory to proceed. Load the data:
 ```{r}
 if (!file.exists('activity.csv')) {unzip('activity.zip')}
 activity = read.csv('activity.csv')
+```
+
+#### Set up R environment
+Load some helper libraries (data.table, chron, ggplot2). Also set the timezone to GMT to stop ggplot2 from translating the timestamps:
+```{r}
+library(data.table)
+library(chron)
+library(ggplot2)
+Sys.setenv(TZ='GMT')
+```
+
+#### Convert interval values to proper times
+The timestamps in the input data are written in hhmm format with leading zeros dropped. The chron package really wants to see times in hh:mm:ss format. First do some string manipulation to add leading zeros, colons, and seconds. Then convert to chron's times datatype:
+```{r}
+hhmmss <- sprintf("%04d", as.numeric(activity$interval))
+activity$time <- times(paste(substr(hhmmss,1,2),substr(hhmmss,3,4),"00",sep=":"))
+```
+
+#### Remove null values
+Finally, preprocess the data to remove null values.
+```{r}
+
+# Remove NA values and convert the result to a data.table
+activity_notnull = na.omit(activity)
+activity_notnull = data.table(activity_notnull)
 ```
 
 
@@ -34,7 +60,20 @@ median(daily_tot$Steps, na.rm=TRUE)
 
 
 ## What is the average daily activity pattern?
+Now we want to look at the average pattern of activity in a day, by time of day. 
+```{r}
 
+# Average each interval's steps over all the days.
+interval.steps <- activity_notnull[,(steps = mean(steps)), by=time]
+setnames(interval.steps,"V1","steps")
+
+# Plot it out
+ggplot(interval.steps, aes(time,steps)) + 
+    geom_line() + 
+    scale_x_chron(format="%H:%M") +
+    ylab("Average steps") +
+    xlab("Time of day")
+```
 
 
 ## Imputing missing values
