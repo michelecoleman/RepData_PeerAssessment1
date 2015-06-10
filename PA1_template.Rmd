@@ -25,7 +25,7 @@ Sys.setenv(TZ='GMT')
 ```
 
 #### Convert interval values to proper times
-The timestamps in the input data are written in hhmm format with leading zeros dropped. The chron package really wants to see times in hh:mm:ss format. First do some string manipulation to add leading zeros, colons, and seconds. Then convert to chron's times datatype:
+The timestamps in the input data are written in hhmm format with leading zeros dropped. The chron package really wants to see times in hh:mm:ss format. First do some string manipulation to add leading zeros, colons, and seconds. Then convert to chron's "times"" datatype:
 ```{r}
 hhmmss <- sprintf("%04d", as.numeric(activity$interval))
 activity$time <- times(paste(substr(hhmmss,1,2),substr(hhmmss,3,4),"00",sep=":"))
@@ -36,8 +36,8 @@ Finally, preprocess the data to remove null values.
 ```{r}
 
 # Remove NA values and convert the result to a data.table
+activity = data.table(activity)
 activity_notnull = na.omit(activity)
-activity_notnull = data.table(activity_notnull)
 ```
 
 
@@ -53,19 +53,21 @@ hist(daily_tot$Steps, col='cornflowerblue', main='Distribution of daily step cou
 
 Let's also look at the average and median number of steps per day, ignoring the days for which we have no data:
 ```{r}
-mean(daily_tot$Steps, na.rm=TRUE)
-median(daily_tot$Steps, na.rm=TRUE)
+avg_steps <- mean(daily_tot$Steps, na.rm=TRUE)
+avg_steps
+median_steps <- median(daily_tot$Steps, na.rm=TRUE)
+median_steps
 ```
 
-
+The average daily steps are `r format(avg_steps,scientific=FALSE)`. Median daily steps are `r format(median_steps,scientific=FALSE)`. 
 
 ## What is the average daily activity pattern?
 Now we want to look at the average pattern of activity in a day, by time of day. 
 ```{r}
 
 # Average each interval's steps over all the days.
-interval.steps <- activity_notnull[,(steps = mean(steps)), by=time]
-setnames(interval.steps,"V1","steps")
+interval.steps <- activity_notnull[,.(steps = mean(steps)), by=.(interval,time)]
+
 
 # Plot it out
 ggplot(interval.steps, aes(time,steps)) + 
@@ -75,8 +77,46 @@ ggplot(interval.steps, aes(time,steps)) +
     xlab("Time of day")
 ```
 
+Find out what time of day has the most steps on average
+```{r}
+# This shows the time of day at which the average step count is highest
+interval.steps[which.max(interval.steps$steps),]$time
+```
+
 
 ## Imputing missing values
+#### Number of missing values
+To calculate the number of records in the original data set for which we are missing data, we can compare the number of rows in the original data set with the number of rows in the data set from which the NAs have been deleted:
+```{r}
+num_missing <- nrow(activity) - nrow(activity_notnull) 
+num_missing
+```
+
+Here is a more direct way check this result:
+```{r}
+length(which(is.na(activity$steps)))
+```
+
+So there are `r num_missing` missing values in the original activity data set.
+
+### Imputing missing values
+To impute the missing values I will substitute in for each missing value the *median* number of steps for that interval. Especially for the nighttime intervals the median feels like a more natural choice to me. For example, the imputed value for the interval at 4 AM will be 0 if we use the median, versus 1.19 if we used the mean. Out of 53 days for which we have information about the number of steps that the person took between 4:00 and 4:05 AM, they took 0 steps on 51 of those days. It is likely therefore that on a random other day they also took 0 steps during this interval.
+
+In an actual data analysis, whether it would be better to choose the median or the mean would depend on why we were doing imputation, and on the relative cost of the errors that would be introduced by the different methods. In this situation, since the two approaches should produce numerically similar results, I am free to choose on aesthetic grounds.
+
+I will again use functionality from data.table to actually do the imputation. My approach is based on a suggestion from stackoverflow user marbel at http://stackoverflow.com/questions/21167644/in-r-how-do-i-replace-the-missing-values-with-the-column-mean.
+
+```{r}
+# We need a median function that doesn't choke on non-numeric values
+# and that returns an integer for numeric values
+generalized_median <- function(x) {
+    if (is.numeric(x)) as.integer(median(x, na.rm = TRUE))
+    else x
+}
+
+impute.median <- function(x) replace(x, is.na(x), generalized_median(x))
+activity_imputed <- activity[, lapply(.SD, impute.median), by = interval]
+```
 
 
 
