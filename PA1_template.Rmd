@@ -156,9 +156,9 @@ generalized_mean <- function(x) {
 # Define a function to pass into lapply
 impute.mean <- function(x) replace(x, is.na(x), generalized_mean(x))
 
-activity_imputed2 <- activity[, lapply(.SD, impute.mean), by = interval]
+activity_imputed_mean <- activity[, lapply(.SD, impute.mean), by = interval]
 
-daily_tot <- data.frame(tapply(activity_imputed2$steps, activity_imputed2$date, sum))
+daily_tot <- data.frame(tapply(activity_imputed_mean$steps, activity_imputed_mean$date, sum))
 names(daily_tot) <- c("Steps")
 hist(daily_tot$Steps, col='thistle1', main='Distribution of daily step counts, with imputation (take 2)',breaks=10, xlab = 'Daily steps', ylab='Number of days')
 
@@ -169,6 +169,40 @@ median(daily_tot$Steps)
 Now the 8 days with missing data have been assigned the average number of steps (`r format(avg_steps,scientific=FALSE)`) as we would have predicted. This imputation approach has changed the data type of the steps column to float (instead of numeric). One of the imputed days has wound up providing the median daily step count as well, so that the median is now also `r format(avg_steps,scientific=FALSE)`.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+To see if there is a difference in activity between weekdays and weekends, we must first classify the data into these two buckets. As instructed, I start with the data post-imputation. Because the imputation using the interval mean seemed to give better results, I will use that one. I again use data.table functionality to add two new columns to the activity_imputed_mean data set.
+
+*Note: there is a bug in how data.table's := operator interacts with knitr. Because of that I have suppressed the R output in this chunk only. (The output is thus identical to what it would be if data.table was behaving correctly.) See References section at end for more information.*
+
+```{r results='hide'}
+# Add a column with the day of the week
+activity_imputed_mean[,dayname := weekdays(as.Date(date))]
+
+# Add a column with the type of day (weekend vs. weekday). To start set the value
+# to "weekday" for all rows
+activity_imputed_mean[,day_type := 'weekday']
+
+# If the day of the week is Saturday or Sunday, convert the day type to weekend:
+activity_imputed_mean[dayname %in% c('Saturday','Sunday'), day_type := 'weekend']
+
+# Make the new column a factor variable
+activity_imputed_mean$day_type = as.factor(activity_imputed_mean$day_type)
+
+```
+
+Plot it out:
+```{r}
+interval.steps <- activity_imputed_mean[,.(steps = mean(steps)), by=.(interval,time,day_type)]
+ggplot(interval.steps, aes(time,steps)) + 
+    geom_line() + 
+    scale_x_chron(format="%H:%M") +
+    ylab("Average steps") +
+    xlab("Time of day") +
+    facet_wrap(~day_type, nrow=2)
+
+```
+
 
 ## References
 The following stackoverflow discussion informed my approach on imputation, though I had to modify it quite a bit to work with my data set and with a median: http://stackoverflow.com/questions/21167644/in-r-how-do-i-replace-the-missing-values-with-the-column-mean
+
+Here is a discussion of the bug in data.table that causes it to incorrectly display output under knitr when the := operator is used: http://stackoverflow.com/questions/15267018/knitr-gets-tricked-by-data-table-assignment . That discussion notes that this bug has been fixed in data.table version 1.9.5 . That is a development version, however. The latest stable production release on CRAN is still 1.9.4 .
