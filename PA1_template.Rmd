@@ -25,7 +25,7 @@ Sys.setenv(TZ='GMT')
 ```
 
 #### Convert interval values to proper times
-The timestamps in the input data are written in hhmm format with leading zeros dropped. The chron package really wants to see times in hh:mm:ss format. First do some string manipulation to add leading zeros, colons, and seconds. Then convert to chron's "times"" datatype:
+The timestamps in the input data are written in hhmm format with leading zeros dropped. The chron package really wants to see times in hh:mm:ss format. First do some string manipulation to add leading zeros, colons, and seconds. Then convert to chron's "times" datatype:
 ```{r}
 hhmmss <- sprintf("%04d", as.numeric(activity$interval))
 activity$time <- times(paste(substr(hhmmss,1,2),substr(hhmmss,3,4),"00",sep=":"))
@@ -99,12 +99,12 @@ length(which(is.na(activity$steps)))
 
 So there are `r num_missing` missing values in the original activity data set.
 
-### Imputing missing values
+#### Imputing missing values
 To impute the missing values I will substitute in for each missing value the *median* number of steps for that interval. Especially for the nighttime intervals the median feels like a more natural choice to me. For example, the imputed value for the interval at 4 AM will be 0 if we use the median, versus 1.19 if we used the mean. Out of 53 days for which we have information about the number of steps that the person took between 4:00 and 4:05 AM, they took 0 steps on 51 of those days. It is likely therefore that on a random other day they also took 0 steps during this interval.
 
-In an actual data analysis, whether it would be better to choose the median or the mean would depend on why we were doing imputation, and on the relative cost of the errors that would be introduced by the different methods. In this situation, since the two approaches should produce numerically similar results, I am free to choose on aesthetic grounds.
+Later, after looking at the results, I discuss whether this imputation using interval median is actually a good idea.
 
-I will again use functionality from data.table to actually do the imputation. My approach is based on a suggestion from stackoverflow user marbel at http://stackoverflow.com/questions/21167644/in-r-how-do-i-replace-the-missing-values-with-the-column-mean.
+I will again use functionality from data.table to actually do the imputation.
 
 ```{r}
 # We need a median function that doesn't choke on non-numeric values
@@ -114,10 +114,61 @@ generalized_median <- function(x) {
     else x
 }
 
+# Define a function to pass into lapply
 impute.median <- function(x) replace(x, is.na(x), generalized_median(x))
+
 activity_imputed <- activity[, lapply(.SD, impute.median), by = interval]
 ```
 
+#### Examining the results
+Repeat the earlier analysis (histogram of step count and finding the median and mean values) with the data set that includes imputed values:
+```{r}
+daily_tot <- data.frame(tapply(activity_imputed$steps, activity_imputed$date, sum))
+names(daily_tot) <- c("Steps")
+hist(daily_tot$Steps, col='seagreen1', main='Distribution of daily step counts, with imputation',breaks=10, xlab = 'Daily steps', ylab='Number of days')
+```
 
+After imputation, the average and median number of steps per day are:
+```{r}
+avg_steps_imputed <- mean(daily_tot$Steps)
+avg_steps_imputed
+median_steps_imputed <- median(daily_tot$Steps)
+median_steps_imputed
+```
+
+#### Discussion
+The data set with missing values imputed using interval medians has rather different summary statistics than the original data set. In the histogram we see significantly more days with very low step counts. My imputation method winds up assigning 1141 steps in total to each day with missing data, which is much lower than the nearly 11,000 steps per day average on other days.
+
+Here is a toy model that illustrates the problem with my imputation method: Assume that every afternoon I walk to a corner cafe to buy a coffee. I cover the 600 steps in 5 minutes. Half an hour later, after drinking my coffee, I walk home again, also taking 5 minutes to cover 600 steps. Now assume that a third of the days I leave at exactly 16:00, a third of the days I leave at 16:05, and a third of the days I leave at 16:10. If we look at the number of steps in interval 1600, it will be 600 a third of the time, and 0 the other two thirds of the time. The *average* steps in this interval will be 200, but the median is 0. If I use the interval median to impute the number of steps taken on a day with missing data I will calculate 0 steps for the 1600 interval, 0 steps for the 1605 interval, and 0 steps for the 1610 interval — and similarly for the three intervals starting half an hour later. Even though my daily coffee run nets me 1200 steps in total, a day with imputed data will show 0 steps during this hour.
+
+In conclusion using the 5 minute interval median to impute is not a good choice in an analysis in which I am primarily concerned with the total number of steps taken per day.
+
+#### Bonus: different imputation stategy
+Let's see what happens if we use interval mean instead of interval median for imputation:
+```{r}
+# We need a median function that doesn't choke on non-numeric values
+# and that returns an integer for numeric values
+generalized_mean <- function(x) {
+    if (is.numeric(x)) mean(x, na.rm = TRUE)
+    else x
+}
+
+# Define a function to pass into lapply
+impute.mean <- function(x) replace(x, is.na(x), generalized_mean(x))
+
+activity_imputed2 <- activity[, lapply(.SD, impute.mean), by = interval]
+
+daily_tot <- data.frame(tapply(activity_imputed2$steps, activity_imputed2$date, sum))
+names(daily_tot) <- c("Steps")
+hist(daily_tot$Steps, col='thistle1', main='Distribution of daily step counts, with imputation (take 2)',breaks=10, xlab = 'Daily steps', ylab='Number of days')
+
+mean(daily_tot$Steps)
+median(daily_tot$Steps)
+
+```
+Now the 8 days with missing data have been assigned the average number of steps (`r format(avg_steps,scientific=FALSE)`) as we would have predicted. This imputation approach has changed the data type of the steps column to float (instead of numeric). One of the imputed days has wound up providing the median daily step count as well, so that the median is now also `r format(avg_steps,scientific=FALSE)`.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+## References
+The following stackoverflow discussion informed my approach on imputation, though I had to modify it quite a bit to work with my data set and with a median: http://stackoverflow.com/questions/21167644/in-r-how-do-i-replace-the-missing-values-with-the-column-mean
