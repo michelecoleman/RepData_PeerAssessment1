@@ -74,7 +74,8 @@ ggplot(interval.steps, aes(time,steps)) +
     geom_line() + 
     scale_x_chron(format="%H:%M") +
     ylab("Average steps") +
-    xlab("Time of day")
+    xlab("Time of day") +
+    ggtitle("Average Daily Activity Pattern")
 ```
 
 Find out what time of day has the most steps on average
@@ -146,8 +147,7 @@ In conclusion using the 5 minute interval median to impute is not a good choice 
 #### Bonus: different imputation stategy
 Let's see what happens if we use interval mean instead of interval median for imputation:
 ```{r}
-# We need a median function that doesn't choke on non-numeric values
-# and that returns an integer for numeric values
+# We need a mean function that doesn't choke on non-numeric values
 generalized_mean <- function(x) {
     if (is.numeric(x)) mean(x, na.rm = TRUE)
     else x
@@ -171,18 +171,27 @@ Now the 8 days with missing data have been assigned the average number of steps 
 ## Are there differences in activity patterns between weekdays and weekends?
 To see if there is a difference in activity between weekdays and weekends, we must first classify the data into these two buckets. As instructed, I start with the data post-imputation. Because the imputation using the interval mean seemed to give better results, I will use that one. I again use data.table functionality to add two new columns to the activity_imputed_mean data set.
 
-*Note: there is a bug in how data.table's := operator interacts with knitr. Because of that I have suppressed the R output in this chunk only. (The output is thus identical to what it would be if data.table was behaving correctly.) See References section at end for more information.*
+```{r echo=FALSE}
+# Note: The following code chunk has results='hide' as a workaround for a bug in data.table. This bug causes it to generate spurious output in knitr when the := operator is used. If you used the identical syntax in the R terminal that output would not appear.  
+
+# Discussion of this bug is at http://stackoverflow.com/questions/15267018/knitr-gets-tricked-by-data-table-assignment . That discussion notes that this bug has been fixed in data.table version 1.9.5 . That is a development version, however. The latest stable production release on CRAN is still 1.9.4 .
+
+
+# Note to graders: ALL OF THE R CODE USED TO GENERATE THE RESULTS IS SHOWN!!  
+
+```
+
 
 ```{r results='hide'}
 # Add a column with the day of the week
-activity_imputed_mean[,dayname := weekdays(as.Date(date))]
+activity_imputed_mean[,day_name := weekdays(as.Date(date))]
 
 # Add a column with the type of day (weekend vs. weekday). To start set the value
 # to "weekday" for all rows
 activity_imputed_mean[,day_type := 'weekday']
 
 # If the day of the week is Saturday or Sunday, convert the day type to weekend:
-activity_imputed_mean[dayname %in% c('Saturday','Sunday'), day_type := 'weekend']
+activity_imputed_mean[day_name %in% c('Saturday','Sunday'), day_type := 'weekend']
 
 # Make the new column a factor variable
 activity_imputed_mean$day_type = as.factor(activity_imputed_mean$day_type)
@@ -197,12 +206,13 @@ ggplot(interval.steps, aes(time,steps)) +
     scale_x_chron(format="%H:%M") +
     ylab("Average steps") +
     xlab("Time of day") +
-    facet_wrap(~day_type, nrow=2)
+    facet_wrap(~day_type, nrow=2) +
+    ggtitle("Average Daily Activity Pattern By Day Type")
 
 ```
+
+On the weekends activity seems to be spread out more throughout the day, with many intervals of moderate activity. The weekday pattern has a much stronger peak in the morning, plus many intervals with under 50 steps. There are fewer under-50 intervals on the weekend. Finally on the weekdays there is a fairly sharp transition from nighttime to daytime shortly before 6 AM, suggesting that the person gets out of bed at a regular, early hour on weekdays. On weekends the morning pattern is more spread out, suggesting a less regular morning schedule. Also the first interval with an average above 50 steps is around 8 AM on the weekend, versus before 6 AM on weekdays — so this person is able to sleep in on the weekends.
 
 
 ## References
 The following stackoverflow discussion informed my approach on imputation, though I had to modify it quite a bit to work with my data set and with a median: http://stackoverflow.com/questions/21167644/in-r-how-do-i-replace-the-missing-values-with-the-column-mean
-
-Here is a discussion of the bug in data.table that causes it to incorrectly display output under knitr when the := operator is used: http://stackoverflow.com/questions/15267018/knitr-gets-tricked-by-data-table-assignment . That discussion notes that this bug has been fixed in data.table version 1.9.5 . That is a development version, however. The latest stable production release on CRAN is still 1.9.4 .
