@@ -1,0 +1,273 @@
+# Reproducible Research: Peer Assessment 1
+
+
+## Loading and preprocessing the data
+#### Load the data
+Either activity.zip or activity.csv file must exist in the working
+directory to proceed. Load the data:
+
+```r
+if (!file.exists('activity.csv')) {unzip('activity.zip')}
+activity = read.csv('activity.csv')
+```
+
+#### Set up R environment
+Load some helper libraries (data.table, chron, ggplot2). Also set the timezone to GMT to stop ggplot2 from translating the timestamps:
+
+```r
+library(data.table)
+library(chron)
+library(ggplot2)
+Sys.setenv(TZ='GMT')
+```
+
+#### Convert interval values to proper times
+The timestamps in the input data are written in hhmm format with leading zeros dropped. The chron package really wants to see times in hh:mm:ss format. First do some string manipulation to add leading zeros, colons, and seconds. Then convert to chron's "times" datatype:
+
+```r
+hhmmss <- sprintf("%04d", as.numeric(activity$interval))
+activity$time <- times(paste(substr(hhmmss,1,2),substr(hhmmss,3,4),"00",sep=":"))
+```
+
+#### Remove null values
+Finally, preprocess the data to remove null values.
+
+```r
+# Remove NA values and convert the result to a data.table
+activity = data.table(activity)
+activity_notnull = na.omit(activity)
+```
+
+
+
+## What is mean total number of steps taken per day?
+Let's explore the distribution of the number of steps taken each day. First, let's look at a histogram of the daily steps:
+
+
+```r
+daily_tot <- data.frame(tapply(activity$steps, activity$date, sum))
+names(daily_tot) <- c("Steps")
+hist(daily_tot$Steps, col='cornflowerblue', main='Distribution of daily step counts',breaks=10, xlab = 'Daily steps', ylab='Number of days')
+```
+
+![](PA1_template_files/figure-html/unnamed-chunk-5-1.png) 
+
+Let's also look at the average and median number of steps per day, ignoring the days for which we have no data:
+
+```r
+avg_steps <- mean(daily_tot$Steps, na.rm=TRUE)
+avg_steps
+```
+
+```
+## [1] 10766.19
+```
+
+```r
+median_steps <- median(daily_tot$Steps, na.rm=TRUE)
+median_steps
+```
+
+```
+## [1] 10765
+```
+
+The average daily steps are 10766.19. Median daily steps are 10765. 
+
+## What is the average daily activity pattern?
+Now we want to look at the average pattern of activity in a day, by time of day. 
+
+```r
+# Average each interval's steps over all the days.
+interval.steps <- activity_notnull[,.(steps = mean(steps)), by=.(interval,time)]
+
+
+# Plot it out
+ggplot(interval.steps, aes(time,steps)) + 
+    geom_line() + 
+    scale_x_chron(format="%H:%M") +
+    ylab("Average steps") +
+    xlab("Time of day") +
+    ggtitle("Average Daily Activity Pattern")
+```
+
+![](PA1_template_files/figure-html/unnamed-chunk-7-1.png) 
+
+Find out what time of day has the most steps on average
+
+```r
+# This shows the time of day at which the average step count is highest
+interval.steps[which.max(interval.steps$steps),]$time
+```
+
+```
+## [1] 08:35:00
+```
+
+
+## Imputing missing values
+#### Number of missing values
+To calculate the number of records in the original data set for which we are missing data, we can compare the number of rows in the original data set with the number of rows in the data set from which the NAs have been deleted:
+
+```r
+num_missing <- nrow(activity) - nrow(activity_notnull) 
+num_missing
+```
+
+```
+## [1] 2304
+```
+
+Here is a more direct way check this result:
+
+```r
+length(which(is.na(activity$steps)))
+```
+
+```
+## [1] 2304
+```
+
+So there are 2304 missing values in the original activity data set.
+
+#### Imputing missing values
+To impute the missing values I will substitute in for each missing value the *median* number of steps for that interval. Especially for the nighttime intervals the median feels like a more natural choice to me. For example, the imputed value for the interval at 4 AM will be 0 if we use the median, versus 1.19 if we used the mean. Out of 53 days for which we have information about the number of steps that the person took between 4:00 and 4:05 AM, they took 0 steps on 51 of those days. It is likely therefore that on a random other day they also took 0 steps during this interval.
+
+Later, after looking at the results, I discuss whether this imputation using interval median is actually a good idea.
+
+I will again use functionality from data.table to actually do the imputation.
+
+
+```r
+# We need a median function that doesn't choke on non-numeric values
+# and that returns an integer for numeric values
+generalized_median <- function(x) {
+    if (is.numeric(x)) as.integer(median(x, na.rm = TRUE))
+    else x
+}
+
+# Define a function to pass into lapply
+impute.median <- function(x) replace(x, is.na(x), generalized_median(x))
+
+activity_imputed <- activity[, lapply(.SD, impute.median), by = interval]
+```
+
+#### Examining the results
+Repeat the earlier analysis (histogram of step count and finding the median and mean values) with the data set that includes imputed values:
+
+```r
+daily_tot <- data.frame(tapply(activity_imputed$steps, activity_imputed$date, sum))
+names(daily_tot) <- c("Steps")
+hist(daily_tot$Steps, col='seagreen1', main='Distribution of daily step counts, with imputation',breaks=10, xlab = 'Daily steps', ylab='Number of days')
+```
+
+![](PA1_template_files/figure-html/unnamed-chunk-12-1.png) 
+
+After imputation, the average and median number of steps per day are:
+
+```r
+avg_steps_imputed <- mean(daily_tot$Steps)
+avg_steps_imputed
+```
+
+```
+## [1] 9503.869
+```
+
+```r
+median_steps_imputed <- median(daily_tot$Steps)
+median_steps_imputed
+```
+
+```
+## [1] 10395
+```
+
+#### Discussion
+The data set with missing values imputed using interval medians has rather different summary statistics than the original data set. In the histogram we see significantly more days with very low step counts. My imputation method winds up assigning 1141 steps in total to each day with missing data, which is much lower than the nearly 11,000 steps per day average on other days.
+
+Here is a toy model that illustrates the problem with my imputation method: Assume that every afternoon I walk to a corner cafe to buy a coffee. I cover the 600 steps in 5 minutes. Half an hour later, after drinking my coffee, I walk home again, also taking 5 minutes to cover 600 steps. Now assume that a third of the days I leave at exactly 16:00, a third of the days I leave at 16:05, and a third of the days I leave at 16:10. If we look at the number of steps in interval 1600, it will be 600 a third of the time, and 0 the other two thirds of the time. The *average* steps in this interval will be 200, but the median is 0. If I use the interval median to impute the number of steps taken on a day with missing data I will calculate 0 steps for the 1600 interval, 0 steps for the 1605 interval, and 0 steps for the 1610 interval — and similarly for the three intervals starting half an hour later. Even though my daily coffee run nets me 1200 steps in total, a day with imputed data will show 0 steps during this hour.
+
+In conclusion using the 5 minute interval median to impute is not a good choice in an analysis in which I am primarily concerned with the total number of steps taken per day.
+
+#### Bonus: different imputation stategy
+Let's see what happens if we use interval mean instead of interval median for imputation:
+
+```r
+# We need a mean function that doesn't choke on non-numeric values
+generalized_mean <- function(x) {
+    if (is.numeric(x)) mean(x, na.rm = TRUE)
+    else x
+}
+
+# Define a function to pass into lapply
+impute.mean <- function(x) replace(x, is.na(x), generalized_mean(x))
+
+activity_imputed_mean <- activity[, lapply(.SD, impute.mean), by = interval]
+
+daily_tot <- data.frame(tapply(activity_imputed_mean$steps, activity_imputed_mean$date, sum))
+names(daily_tot) <- c("Steps")
+hist(daily_tot$Steps, col='thistle1', main='Distribution of daily step counts, with imputation (take 2)',breaks=10, xlab = 'Daily steps', ylab='Number of days')
+```
+
+![](PA1_template_files/figure-html/unnamed-chunk-14-1.png) 
+
+```r
+mean(daily_tot$Steps)
+```
+
+```
+## [1] 10766.19
+```
+
+```r
+median(daily_tot$Steps)
+```
+
+```
+## [1] 10766.19
+```
+Now the 8 days with missing data have been assigned the average number of steps (10766.19) as we would have predicted. This imputation approach has changed the data type of the steps column to float (instead of numeric). One of the imputed days has wound up providing the median daily step count as well, so that the median is now also 10766.19.
+
+## Are there differences in activity patterns between weekdays and weekends?
+To see if there is a difference in activity between weekdays and weekends, we must first classify the data into these two buckets. As instructed, I start with the data post-imputation. Because the imputation using the interval mean seemed to give better results, I will use that one. I again use data.table functionality to add two new columns to the activity_imputed_mean data set.
+
+
+
+
+
+```r
+# Add a column with the day of the week
+activity_imputed_mean[,day_name := weekdays(as.Date(date))]
+
+# Add a column with the type of day (weekend vs. weekday). To start set the value
+# to "weekday" for all rows
+activity_imputed_mean[,day_type := 'weekday']
+
+# If the day of the week is Saturday or Sunday, convert the day type to weekend:
+activity_imputed_mean[day_name %in% c('Saturday','Sunday'), day_type := 'weekend']
+
+# Make the new column a factor variable
+activity_imputed_mean$day_type = as.factor(activity_imputed_mean$day_type)
+```
+
+Plot it out:
+
+```r
+interval.steps <- activity_imputed_mean[,.(steps = mean(steps)), by=.(interval,time,day_type)]
+ggplot(interval.steps, aes(time,steps)) + 
+    geom_line() + 
+    scale_x_chron(format="%H:%M") +
+    ylab("Average steps") +
+    xlab("Time of day") +
+    facet_wrap(~day_type, nrow=2) +
+    ggtitle("Average Daily Activity Pattern By Day Type")
+```
+
+![](PA1_template_files/figure-html/unnamed-chunk-17-1.png) 
+
+On the weekends activity seems to be spread out more throughout the day, with many intervals of moderate activity. The weekday pattern has a much stronger peak in the morning, plus many intervals with under 50 steps. There are fewer under-50 intervals on the weekend. Finally on the weekdays there is a fairly sharp transition from nighttime to daytime shortly before 6 AM, suggesting that the person gets out of bed at a regular, early hour on weekdays. On weekends the morning pattern is more spread out, suggesting a less regular morning schedule. Also the first interval with an average above 50 steps is around 8 AM on the weekend, versus before 6 AM on weekdays — so this person is able to sleep in on the weekends.
+
+
+## References
+The following stackoverflow discussion informed my approach on imputation, though I had to modify it quite a bit to work with my data set and with a median: http://stackoverflow.com/questions/21167644/in-r-how-do-i-replace-the-missing-values-with-the-column-mean
