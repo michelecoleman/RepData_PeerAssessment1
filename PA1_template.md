@@ -1,6 +1,5 @@
 # Reproducible Research: Peer Assessment 1
 
-
 ## Loading and preprocessing the data
 #### Load the data
 Either activity.zip or activity.csv file must exist in the working
@@ -13,6 +12,20 @@ activity = read.csv('activity.csv')
 
 #### Set up R environment
 Load some helper libraries (data.table, chron, ggplot2). Also set the timezone to GMT to stop ggplot2 from translating the timestamps:
+
+```r
+require(knitr)
+```
+
+```
+## Loading required package: knitr
+```
+
+```r
+opts_chunk$set(echo = TRUE, fig.path = "figure/")
+```
+
+
 
 ```r
 library(data.table)
@@ -50,7 +63,7 @@ names(daily_tot) <- c("Steps")
 hist(daily_tot$Steps, col='cornflowerblue', main='Distribution of daily step counts',breaks=10, xlab = 'Daily steps', ylab='Number of days')
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-5-1.png) 
+![](figure/unnamed-chunk-5-1.png) 
 
 Let's also look at the average and median number of steps per day, ignoring the days for which we have no data:
 
@@ -91,7 +104,7 @@ ggplot(interval.steps, aes(time,steps)) +
     ggtitle("Average Daily Activity Pattern")
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-7-1.png) 
+![](figure/unnamed-chunk-7-1.png) 
 
 Find out what time of day has the most steps on average
 
@@ -161,7 +174,7 @@ names(daily_tot) <- c("Steps")
 hist(daily_tot$Steps, col='seagreen1', main='Distribution of daily step counts, with imputation',breaks=10, xlab = 'Daily steps', ylab='Number of days')
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-12-1.png) 
+![](figure/unnamed-chunk-12-1.png) 
 
 After imputation, the average and median number of steps per day are:
 
@@ -210,7 +223,7 @@ names(daily_tot) <- c("Steps")
 hist(daily_tot$Steps, col='thistle1', main='Distribution of daily step counts, with imputation (take 2)',breaks=10, xlab = 'Daily steps', ylab='Number of days')
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-14-1.png) 
+![](figure/unnamed-chunk-14-1.png) 
 
 ```r
 mean(daily_tot$Steps)
@@ -264,7 +277,7 @@ ggplot(interval.steps, aes(time,steps)) +
     ggtitle("Average Daily Activity Pattern By Day Type")
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-17-1.png) 
+![](figure/unnamed-chunk-17-1.png) 
 
 On the weekends activity seems to be spread out more throughout the day, with many intervals of moderate activity. The weekday pattern has a much stronger peak in the morning, plus many intervals with under 50 steps. There are fewer under-50 intervals on the weekend. Finally on the weekdays there is a fairly sharp transition from nighttime to daytime shortly before 6 AM, suggesting that the person gets out of bed at a regular, early hour on weekdays. On weekends the morning pattern is more spread out, suggesting a less regular morning schedule. Also the first interval with an average above 50 steps is around 8 AM on the weekend, versus before 6 AM on weekdays — so this person is able to sleep in on the weekends.
 

@@ -75,6 +75,9 @@ activity = read.csv('activity.csv')</code></pre>
 <div id="set-up-r-environment" class="section level4">
 <h4>Set up R environment</h4>
 <p>Load some helper libraries (data.table, chron, ggplot2). Also set the timezone to GMT to stop ggplot2 from translating the timestamps:</p>
+<pre class="r"><code>require(knitr)</code></pre>
+<pre><code>## Loading required package: knitr</code></pre>
+<pre class="r"><code>opts_chunk$set(echo = TRUE, fig.path = &quot;figure/&quot;)</code></pre>
 <pre class="r"><code>library(data.table)
 library(chron)
 library(ggplot2)

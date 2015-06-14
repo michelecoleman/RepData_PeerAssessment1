@@ -5,7 +5,6 @@ output:
     keep_md: true
 ---
 
-
 ## Loading and preprocessing the data
 #### Load the data
 Either activity.zip or activity.csv file must exist in the working
@@ -17,6 +16,12 @@ activity = read.csv('activity.csv')
 
 #### Set up R environment
 Load some helper libraries (data.table, chron, ggplot2). Also set the timezone to GMT to stop ggplot2 from translating the timestamps:
+```{r setoptions}
+require(knitr)
+opts_chunk$set(echo = TRUE, fig.path = "figure/")
+```
+
+
 ```{r}
 library(data.table)
 library(chron)
